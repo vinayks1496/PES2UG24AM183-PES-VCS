@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+//errors checked
 // ─── PROVIDED ────────────────────────────────────────────────────────────────
 
 IndexEntry* index_find(Index *index, const char *path) {
@@ -140,5 +141,4 @@ int index_add(Index *index, const char *path) {
     e->path[sizeof(e->path) - 1] = '\0';
 
     return index_save(index);
-} 
-
+}
