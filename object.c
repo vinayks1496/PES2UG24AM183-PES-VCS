@@ -197,7 +197,88 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
 // The caller is responsible for calling free(*data_out).
 // Returns 0 on success, -1 on error (file not found, corrupt, etc.).
 int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out) {
-    // TODO: Implement
-    (void)id; (void)type_out; (void)data_out; (void)len_out;
-    return -1;
+    char path[512];
+    object_path(id, path, sizeof(path));
+
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+
+    // Get file size
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    rewind(f);
+
+    if (size <= 0) {
+        fclose(f);
+        return -1;
+    }
+
+    // Read full file
+    unsigned char *buffer = malloc(size);
+    if (!buffer) {
+        fclose(f);
+        return -1;
+    }
+
+    if (fread(buffer, 1, size, f) != (size_t)size) {
+        fclose(f);
+        free(buffer);
+        return -1;
+    }
+    fclose(f);
+
+    // Verify hash
+    ObjectID computed;
+    compute_hash(buffer, size, &computed);
+    if (memcmp(&computed, id, sizeof(ObjectID)) != 0) {
+        free(buffer);
+        return -1;
+    }
+
+    // Find header/data separator
+    unsigned char *null_ptr = memchr(buffer, '\0', size);
+    if (!null_ptr) {
+        free(buffer);
+        return -1;
+    }
+
+    size_t header_len = null_ptr - buffer + 1;
+    char type_str[16];
+    size_t data_size;
+
+    // Parse header "<type> <size>"
+    if (sscanf((char *)buffer, "%15s %zu", type_str, &data_size) != 2) {
+        free(buffer);
+        return -1;
+    }
+
+    // Map type string to enum
+    if (strcmp(type_str, "blob") == 0) *type_out = OBJ_BLOB;
+    else if (strcmp(type_str, "tree") == 0) *type_out = OBJ_TREE;
+    else if (strcmp(type_str, "commit") == 0) *type_out = OBJ_COMMIT;
+    else {
+        free(buffer);
+        return -1;
+    }
+
+    // Validate size
+    if (header_len + data_size > (size_t)size) {
+        free(buffer);
+        return -1;
+    }
+
+    // Extract data
+    void *data = malloc(data_size);
+    if (!data) {
+        free(buffer);
+        return -1;
+    }
+
+    memcpy(data, buffer + header_len, data_size);
+
+    *data_out = data;
+    *len_out = data_size;
+
+    free(buffer);
+    return 0;
 }
