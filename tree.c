@@ -1,5 +1,5 @@
 // tree.c — Tree object serialization and construction
-// code after fixing the errors
+
 #include "tree.h"
 #include "index.h"
 #include <stdio.h>
@@ -102,7 +102,7 @@ int tree_from_index(ObjectID *id_out) {
         strncpy(entry->name, idx.entries[i].path, sizeof(entry->name));
         entry->name[sizeof(entry->name) - 1] = '\0';
 
-        entry->hash = idx.entries[i].id;
+        entry->hash = idx.entries[i].hash;  // ✅ FIXED
 
         tree.count++;
     }
@@ -111,6 +111,8 @@ int tree_from_index(ObjectID *id_out) {
     size_t len = 0;
 
     if (tree_serialize(&tree, &data, &len) != 0) return -1;
+
+    extern int object_write(ObjectType, const void *, size_t, ObjectID *);
 
     int rc = object_write(OBJ_TREE, data, len, id_out);
 
